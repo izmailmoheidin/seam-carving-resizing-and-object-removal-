@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seam Carving and Object Removal</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            text-align: center;
+            padding: 20px;
+            color: #444;
+        }
+
+        form {
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+
+        input[type="file"], input[type="number"], select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #4cae4c;
+        }
+
+        p {
+            text-align: center;
+        }
+
+        .image-container {
+            display: flex;
+            flex-direction: row;
+            justify-content: center;
+            align-items: flex-start;
+            margin: 20px auto;
+            gap: 20px;
+        }
+
+        .image-box {
+            text-align: center;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            background: #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .image-box img {
+            max-width: 100%;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+
+        .image-box .download-btn {
+            display: block;
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            text-decoration: none;
+            border-radius: 4px;
+            margin-top: 10px;
+        }
+
+        .image-box .download-btn:hover {
+            background-color: #0056b3;
+        }
+
+        .size-info {
+            margin-bottom: 10px;
+            color: #555;
+        }
+
+        .error-message {
+            color: red;
+            text-align: center;
+        }
+
+        .success-message {
+            color: green;
+            text-align: center;
+        }
+
+        .loading {
+            display: none;
+            text-align: center;
+            margin-top: 20px;
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        .loading .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto;
+            border: 5px solid #f3f3f3; /* Light grey */
+            border-top: 5px solid #3498db; /* Blue */
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+    <h1>Seam Carving and Object Removal</h1>
+    <form action="/" method="POST" enctype="multipart/form-data" id="process-form">
+        <label for="image">Upload Image:</label>
+        <input type="file" name="image" id="image" required><br><br>
+
+        <label for="mode">Select Mode:</label>
+        <select name="mode" id="mode" required>
+            <option value="resize">Resize</option>
+            <option value="object_removal">Object Removal</option>
+        </select><br><br>
+
+        <div id="resize-options">
+            <label for="width">Width:</label>
+            <input type="number" name="width" id="width" min="1"><br>
+
+            <label for="height">Height:</label>
+            <input type="number" name="height" id="height" min="1"><br>
+        </div>
+
+        <div id="object-removal-options" style="display: none;">
+            <label for="mask">Upload Mask:</label>
+            <input type="file" name="mask" id="mask"><br>
+        </div>
+
+        <button type="submit">Submit</button>
+    </form>
+
+    <div class="loading" id="loading">
+        <div class="spinner"></div>
+        <p>Processing, please wait...</p>
+    </div>
+
+    {% if error %}
+        <p class="error-message">{{ error }}</p>
+    {% endif %}
+
+    {% if original_image and result_image %}
+        <div class="image-container">
+            <div class="image-box">
+                <h3>Original Image</h3>
+                {% if original_size and result_size %}
+                    <p class="size-info">Size: {{ original_size }}</p>
+                {% endif %}
+                <img src="{{ original_image }}" alt="Original Image">
+            </div>
+            <div class="image-box">
+                <h3>Processed Image</h3>
+                {% if original_size and result_size %}
+                    <p class="size-info">Size: {{ result_size }}</p>
+                {% endif %}
+                <img src="{{ result_image }}" alt="Result Image">
+                <a href="{{ result_image }}" class="download-btn" download>Download Processed Image</a>
+            </div>
+        </div>
+
+        {% if message %}
+            <p class="success-message">{{ message }}</p>
+        {% endif %}
+    {% endif %}
+
+    <script>
+        const modeSelect = document.getElementById('mode');
+        const resizeOptions = document.getElementById('resize-options');
+        const objectRemovalOptions = document.getElementById('object-removal-options');
+        const form = document.getElementById('process-form');
+        const loading = document.getElementById('loading');
+
+        modeSelect.addEventListener('change', () => {
+            if (modeSelect.value === 'resize') {
+                resizeOptions.style.display = 'block';
+                objectRemovalOptions.style.display = 'none';
+            } else if (modeSelect.value === 'object_removal') {
+                resizeOptions.style.display = 'none';
+                objectRemovalOptions.style.display = 'block';
+            }
+        });
+
+        form.addEventListener('submit', (event) => {
+            event.preventDefault(); // Prevent form from submitting immediately
+            loading.style.display = 'block'; // Show loading spinner
+            setTimeout(() => {
+                form.submit(); // Submit the form after delay
+            }, 500);
+        });
+    </script>
+</body>
+</html>
